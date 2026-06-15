@@ -21,4 +21,7 @@ PICKLE_FILE = os.path.join(APPDATA_DIR, 'selected_printer.pkl')
 TRAY_TOOLTIP = 'Apipos'
 TRAY_ICON = resource_path(os.path.join('assets', 'app-icon.png'))
 
+# Bundled PDF used by the /print/test endpoint (80mm @ 300 DPI ticket).
+TEST_PDF = resource_path(os.path.join('assets', 'APIPOS.pdf'))
+
 FLASK_PORT = 50432

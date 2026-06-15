@@ -6,7 +6,10 @@ a = Analysis(
     ['apipos.py'],
     pathex=[],
     binaries=[],
-    datas=[('./assets/app-icon.png', 'assets')],
+    datas=[
+        ('./assets/app-icon.png', 'assets'),
+        ('./assets/APIPOS.pdf', 'assets'),
+    ],
     hiddenimports=['win32print', 'win32timezone'],
     hookspath=[],
     hooksconfig={},

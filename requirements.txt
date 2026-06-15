@@ -3,3 +3,5 @@ Flask
 Flask-Cors
 Pillow
 wxPython
+# PDF rasterization (PDF -> image -> ESC/POS) for thermal printers
+PyMuPDF

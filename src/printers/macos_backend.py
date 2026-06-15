@@ -13,6 +13,8 @@ from src.printers.base import PrinterBackend
 
 
 class MacPrinterBackend(PrinterBackend):
+    native_pdf = True  # CUPS renders PDFs natively
+
     def list_printers(self):
         # `lpstat -e` prints one CUPS destination (printer) name per line.
         result = subprocess.run(
@@ -49,3 +51,13 @@ class MacPrinterBackend(PrinterBackend):
             )
 
         print(f"Data sent to printer: {printer_name}")
+
+    def print_pdf(self, printer_name, pdf_bytes):
+        # CUPS handles PDF natively, so we send it WITHOUT `-o raw` and let the
+        # printer driver rasterize it.
+        subprocess.run(
+            ['lp', '-d', printer_name],
+            input=pdf_bytes,
+            check=True,
+        )
+        print(f"PDF sent to printer: {printer_name}")

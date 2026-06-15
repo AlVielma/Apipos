@@ -1,6 +1,7 @@
 -r requirements.txt
 # macOS / Linux printer I/O uses CUPS (the `lp` / `lpstat` commands), which ship
-# with the OS — no extra dependency required.
+# with the OS — no extra system dependency required (PyMuPDF comes from the
+# common requirements and is used to rasterize PDFs for thermal printers).
 #
 # Optional: python-escpos provides an `Lp` printer wrapper; if installed, the
 # macOS backend will use it instead of calling `lp` directly.

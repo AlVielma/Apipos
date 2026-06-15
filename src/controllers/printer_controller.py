@@ -53,3 +53,12 @@ def open_withdrawer_controller():
         return _respond(result)
     except Exception as e:
         return jsonify(error_response(str(e))), 500
+
+
+def print_test_controller():
+    try:
+        printer = request.args.get('printer')
+        result = printer_service.print_test(printer)
+        return _respond(result)
+    except Exception as e:
+        return jsonify(error_response(str(e))), 500

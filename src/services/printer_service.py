@@ -7,6 +7,9 @@ Multiple printers are supported per-request: a print/drawer request may target
 any printer by name and override paper settings, instead of relying solely on
 the single printer selected from the tray.
 """
+import base64
+
+from src.config import TEST_PDF
 from src.services import escpos_service as escpos
 from src.services.print_job_builder import PrintJobBuilder
 from src.services.storage_service import load_selected_printer, save_selected_printer
@@ -39,27 +42,33 @@ def _parse_print_payload(payload):
     New shape:
         {
             "printer": "EPSON TM-T20",      # optional, falls back to selected printer
-            "settings": {"paper_size": 80}, # optional
-            "content": [ ...items... ]      # the items to print
+            "type": "RAW" | "PDF",          # optional, defaults to RAW
+            "settings": {"paper_size": 80}, # optional (RAW only)
+            "content": [ ...items... ],     # the items to print (RAW)
+            "data": "<base64 pdf>"          # the PDF buffer (PDF)
         }
 
-    Legacy shape: a bare list of items -> uses the selected printer.
+    Legacy shape: a bare list of items -> RAW job using the selected printer.
     """
     if isinstance(payload, dict):
         printer_name = payload.get('printer') or payload.get('printer_name')
+        job_type = (payload.get('type') or 'RAW').upper()
         settings = payload.get('settings') or {}
         content = payload.get('content') or payload.get('items') or []
+        pdf_data = payload.get('data')
     elif isinstance(payload, list):
         printer_name = None
+        job_type = 'RAW'
         settings = {}
         content = payload
+        pdf_data = None
     else:
         raise ValueError("Invalid payload: expected an object or a list of items")
 
     if not printer_name:
         printer_name = load_selected_printer()
 
-    return printer_name, settings, content
+    return printer_name, job_type, settings, content, pdf_data
 
 
 def get_printers():
@@ -103,11 +112,107 @@ def open_drawer(payload=None):
 
 
 def print_job(payload):
-    """Render and send a print job to the target printer."""
-    printer_name, settings, content = _parse_print_payload(payload)
+    """Render and send a print job to the target printer.
+
+    Routes by job `type`:
+      - "RAW" (default): builds an ESC/POS ticket from `content`.
+      - "PDF": prints a base64 PDF buffer (`data`) as a document.
+    """
+    printer_name, job_type, settings, content, pdf_data = _parse_print_payload(payload)
 
     if not printer_name:
         return error_response("No printer selected.")
+
+    if job_type == 'PDF':
+        return _print_pdf_job(printer_name, pdf_data, settings)
+    if job_type == 'RAW':
+        return _print_raw_job(printer_name, settings, content)
+    return error_response(f"Unsupported job type '{job_type}'. Use 'RAW' or 'PDF'.")
+
+
+def _pdf_width_dots(settings):
+    """Raster width in dots for PDF rasterization (576 for 80mm, 384 for 58mm)."""
+    settings = settings or {}
+    char_width = settings.get('char_width')
+    if char_width:
+        return 576 if int(char_width) >= 48 else 384
+    paper_size = settings.get('paper_size') or settings.get('paper_size_mm')
+    if paper_size:
+        return 576 if int(paper_size) >= 80 else 384
+    return 576  # default to 80mm
+
+
+def _print_pdf_job(printer_name, pdf_data, settings=None):
+    """Decode a base64 PDF buffer and print it.
+
+    Strategy depends on the platform:
+      - native PDF (CUPS / macOS / Linux): send the PDF as a document.
+      - otherwise (Windows): rasterize the PDF to an ESC/POS image and send raw.
+    """
+    if not pdf_data:
+        return error_response("No PDF data provided. Send the PDF as base64 in 'data'.")
+
+    # Tolerate a data URI prefix (e.g. "data:application/pdf;base64,....").
+    if isinstance(pdf_data, str) and ',' in pdf_data and pdf_data.strip().startswith('data:'):
+        pdf_data = pdf_data.split(',', 1)[1]
+
+    try:
+        pdf_bytes = base64.b64decode(pdf_data)
+    except Exception:
+        return error_response("Invalid base64 PDF data.")
+
+    if not pdf_bytes.startswith(b'%PDF'):
+        return error_response("Provided data is not a valid PDF.")
+
+    return _print_pdf_bytes(printer_name, pdf_bytes, settings)
+
+
+def _print_pdf_bytes(printer_name, pdf_bytes, settings=None):
+    """Print raw PDF bytes.
+
+    Thermal ESC/POS printers do NOT understand PDF/PostScript, so the default is
+    to rasterize the PDF into an ESC/POS image. The "document" mode (let the OS
+    print system render the PDF) is only useful for full-page printers and must
+    be requested explicitly via settings.pdf_mode = "document".
+    """
+    settings = settings or {}
+    mode = (settings.get('pdf_mode') or 'raster').lower()
+
+    if mode == 'document':
+        escpos.print_pdf(printer_name, pdf_bytes)
+        strategy = "document"
+    else:
+        try:
+            escpos_data = escpos.pdf_to_escpos(pdf_bytes, width_dots=_pdf_width_dots(settings))
+        except ImportError as e:
+            return error_response(str(e))
+        escpos.send_raw(printer_name, escpos_data)
+        strategy = "raster"
+
+    return success_response(
+        data={"printer": printer_name, "type": "PDF", "strategy": strategy},
+        message="PDF print job sent.",
+    )
+
+
+def print_test(printer_name=None):
+    """Print the bundled test PDF asset (80mm @ 300 DPI ticket)."""
+    if not printer_name:
+        printer_name = load_selected_printer()
+    if not printer_name:
+        return error_response("No printer selected.")
+
+    try:
+        with open(TEST_PDF, 'rb') as f:
+            pdf_bytes = f.read()
+    except FileNotFoundError:
+        return error_response("Test PDF asset not found.")
+
+    return _print_pdf_bytes(printer_name, pdf_bytes, {"paper_size": 80})
+
+
+def _print_raw_job(printer_name, settings, content):
+    """Build an ESC/POS ticket from `content` and send it as a single job."""
     if not content:
         return error_response("No content to print.")
 

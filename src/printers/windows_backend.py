@@ -5,6 +5,8 @@ from src.printers.base import PrinterBackend
 
 
 class WindowsPrinterBackend(PrinterBackend):
+    native_pdf = False  # PDFs are rasterized to ESC/POS before sending
+
     def list_printers(self):
         printers = win32print.EnumPrinters(
             win32print.PRINTER_ENUM_LOCAL | win32print.PRINTER_ENUM_CONNECTIONS
@@ -32,3 +34,22 @@ class WindowsPrinterBackend(PrinterBackend):
             print(f"Data sent to printer: {printer_name}")
         finally:
             win32print.ClosePrinter(hprinter)
+
+    def print_pdf(self, printer_name, pdf_bytes):
+        # Optional/fallback path. By default the service rasterizes PDFs to
+        # ESC/POS (native_pdf = False), so this is only used if invoked directly.
+        # Hands the PDF to the registered Windows PDF viewer via the ShellExecute
+        # "printto" verb, targeting the requested printer.
+        import os
+        import tempfile
+        import win32api
+
+        fd, path = tempfile.mkstemp(suffix='.pdf')
+        with os.fdopen(fd, 'wb') as f:
+            f.write(pdf_bytes)
+
+        # "printto" expects the printer name (quoted) as the parameter.
+        win32api.ShellExecute(0, 'printto', path, f'"{printer_name}"', '.', 0)
+        # NOTE: ShellExecute returns immediately; the temp file is left in the
+        # OS temp folder so the viewer can finish reading it.
+        print(f"PDF sent to printer: {printer_name}")

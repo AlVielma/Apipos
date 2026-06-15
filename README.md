@@ -109,7 +109,8 @@ Base URL: `http://localhost:50432`
 | `GET`  | `/printers`           | Lista las impresoras disponibles en la máquina     |
 | `GET`  | `/printers/selected`  | Devuelve la impresora por defecto actual           |
 | `POST` | `/printers/selected`  | Cambia la impresora por defecto                    |
-| `POST` | `/print`              | Imprime un ticket                                  |
+| `POST` | `/print`              | Imprime un ticket (`type`: `RAW` ESC/POS o `PDF`)  |
+| `GET`  | `/print/test`         | Imprime el PDF de prueba incluido (`?printer=` opcional) |
 | `POST` | `/open-withdrawer`    | Abre el cajón de dinero                            |
 
 ### `GET /health`
@@ -136,11 +137,17 @@ Base URL: `http://localhost:50432`
 
 ### `POST /print`
 
-Formato recomendado (objeto): permite elegir impresora y settings por petición.
+Acepta dos tipos de trabajo según el campo `type`:
+
+- **`"RAW"`** *(por defecto)*: arma un ticket ESC/POS a partir de `content`.
+- **`"PDF"`**: imprime un buffer PDF (base64) como documento.
+
+#### Trabajo RAW (ESC/POS)
 
 ```json
 {
   "printer": "EPSON TM-T20",
+  "type": "RAW",
   "settings": { "paper_size": 80 },
   "content": [
     { "type": "text", "data": "MI TIENDA", "align": "center", "font_size": "lg" },
@@ -158,11 +165,12 @@ Formato recomendado (objeto): permite elegir impresora y settings por petición.
 
 - `printer` *(opcional)*: a qué impresora va el trabajo. Si se omite, usa la
   impresora por defecto seleccionada en la bandeja.
-- `settings` *(opcional)*:
+- `type` *(opcional)*: `"RAW"` (default) o `"PDF"`.
+- `settings` *(opcional, solo RAW)*:
   - `paper_size`: ancho del papel en mm (`80` → 48 columnas, `58` → 32 columnas).
   - `char_width`: número exacto de columnas (sobrescribe a `paper_size`).
   - Si no se envía, se consulta el ancho directamente a la impresora.
-- `content`: lista de elementos a imprimir.
+- `content` *(solo RAW)*: lista de elementos a imprimir.
 
 **Tipos de elemento (`type`)**
 
@@ -177,6 +185,32 @@ Formato recomendado (objeto): permite elegir impresora y settings por petición.
 
 > Compatibilidad: `POST /print` también acepta el formato antiguo (una lista de
 > elementos directamente, sin objeto envolvente), usando la impresora por defecto.
+
+#### Trabajo PDF
+
+Envía el PDF como **base64** en el campo `data`:
+
+```json
+{
+  "printer": "EPSON TM-T20",
+  "type": "PDF",
+  "data": "JVBERi0xLjQKJ..."
+}
+```
+
+- `data`: el buffer del PDF en base64 (se acepta también el prefijo
+  `data:application/pdf;base64,`).
+- Cómo se imprime (`settings.pdf_mode`):
+  - **`"raster"` (por defecto, recomendado):** el PDF se convierte a imagen y se
+    envía como ESC/POS. Es lo correcto para impresoras térmicas, que **no
+    entienden PDF ni PostScript**. Requiere `PyMuPDF` (incluido en requirements).
+    Respuesta: `"strategy": "raster"`.
+  - **`"document"`:** se entrega el PDF al sistema de impresión del SO (CUPS en
+    macOS/Linux, visor por `printto` en Windows). Útil solo para impresoras de
+    página completa con driver de PDF/PostScript. En una térmica imprimirá basura.
+    Respuesta: `"strategy": "document"`.
+- En modo raster se respeta `settings` para el ancho: `paper_size` 80 → 576 px,
+  58 → 384 px (o `char_width`). Conviene generar el PDF al ancho del papel.
 
 ### `POST /open-withdrawer`
 
@@ -220,7 +254,7 @@ curl http://localhost:50432/health
 | Archivo                     | Plataforma | Incluye                                   |
 |-----------------------------|------------|-------------------------------------------|
 | `requirements.txt`          | común      | Flask, Flask-Cors, Pillow, wxPython       |
-| `requirements-windows.txt`  | Windows    | + `pywin32`                               |
+| `requirements-windows.txt`  | Windows    | + `pywin32`, `PyMuPDF` (rasterizar PDF)    |
 | `requirements-macos.txt`    | macOS/Linux| solo CUPS del sistema (`lp` / `lpstat`)   |
 
 > En macOS/Linux no se requiere ninguna librería extra para imprimir: se usa
