@@ -216,6 +216,27 @@ Envía el PDF como **base64** en el campo `data`:
 
 Body opcional `{ "printer": "..." }`; si se omite usa la impresora por defecto.
 
+### `GET /print/test`
+
+Imprime el PDF de prueba incluido en la app (`assets/APIPOS.pdf`, 80mm) usando la
+estrategia **raster**. Sirve para validar rápido que una impresora imprime bien.
+
+1. Primero **lista las impresoras** y copia el nombre exacto:
+
+   ```bash
+   curl http://localhost:50432/printers
+   ```
+
+2. Pasa ese nombre en el query param `printer`:
+
+   ```bash
+   curl 'http://localhost:50432/print/test?printer=POS80_Kinwodon'
+   ```
+
+- `printer` *(opcional)*: si se omite, usa la impresora por defecto seleccionada.
+- También responde a `POST` (mismo comportamiento), por si tu cliente no permite `GET`.
+- Requiere `PyMuPDF` instalado (rasterizado). Respuesta: `"strategy": "raster"`.
+
 ---
 
 ## Formato de impresión
@@ -251,15 +272,18 @@ curl http://localhost:50432/health
 
 ### Dependencias
 
-| Archivo                     | Plataforma | Incluye                                   |
-|-----------------------------|------------|-------------------------------------------|
-| `requirements.txt`          | común      | Flask, Flask-Cors, Pillow, wxPython       |
-| `requirements-windows.txt`  | Windows    | + `pywin32`, `PyMuPDF` (rasterizar PDF)    |
-| `requirements-macos.txt`    | macOS/Linux| solo CUPS del sistema (`lp` / `lpstat`)   |
+| Archivo                     | Plataforma | Incluye                                          |
+|-----------------------------|------------|--------------------------------------------------|
+| `requirements.txt`          | común      | Flask, Flask-Cors, Pillow, wxPython, **PyMuPDF** |
+| `requirements-windows.txt`  | Windows    | + `pywin32`                                      |
+| `requirements-macos.txt`    | macOS/Linux| nada extra (usa CUPS del sistema)                |
 
-> En macOS/Linux no se requiere ninguna librería extra para imprimir: se usa
-> CUPS, que viene con el sistema. (Opcionalmente, si `python-escpos` está
-> instalado, el backend usa su wrapper `Lp`.)
+> `PyMuPDF` es común a ambos SO porque se usa para **rasterizar PDFs** (PDF →
+> imagen → ESC/POS), necesario para impresoras térmicas.
+>
+> En macOS/Linux la impresión de bajo nivel usa CUPS (`lp` / `lpstat`), que viene
+> con el sistema. (Opcionalmente, si `python-escpos` está instalado, el backend
+> usa su wrapper `Lp`.)
 
 ---
 
