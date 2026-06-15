@@ -1,0 +1,3 @@
+-r requirements.txt
+# Windows-only printer I/O
+pywin32

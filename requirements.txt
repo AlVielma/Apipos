@@ -1,0 +1,5 @@
+# Common dependencies (cross-platform)
+Flask
+Flask-Cors
+Pillow
+wxPython

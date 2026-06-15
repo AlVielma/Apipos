@@ -1,0 +1,7 @@
+-r requirements.txt
+# macOS / Linux printer I/O uses CUPS (the `lp` / `lpstat` commands), which ship
+# with the OS — no extra dependency required.
+#
+# Optional: python-escpos provides an `Lp` printer wrapper; if installed, the
+# macOS backend will use it instead of calling `lp` directly.
+# python-escpos

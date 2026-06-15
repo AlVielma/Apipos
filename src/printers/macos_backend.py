@@ -1,0 +1,51 @@
+"""macOS / Linux printer backend (CUPS).
+
+Printing on macOS/Linux goes through CUPS. We send raw ESC/POS bytes with the
+`lp` command (`lp -d <printer> -o raw`) and discover printers with `lpstat`.
+Both ship with the OS, so no extra dependency is required.
+
+If python-escpos is installed, its `Lp` printer is used instead (it wraps the
+same `lp` command); otherwise we fall back to calling `lp` directly.
+"""
+import subprocess
+
+from src.printers.base import PrinterBackend
+
+
+class MacPrinterBackend(PrinterBackend):
+    def list_printers(self):
+        # `lpstat -e` prints one CUPS destination (printer) name per line.
+        result = subprocess.run(
+            ['lpstat', '-e'], capture_output=True, text=True, check=False
+        )
+        return [line.strip() for line in result.stdout.splitlines() if line.strip()]
+
+    def get_printer_width(self, printer_name):
+        # CUPS does not expose the paper width the way Windows' DevMode does.
+        # Default to 80mm (48 chars); callers can override via request settings.
+        return 48
+
+    def send_raw(self, printer_name, data):
+        try:
+            from escpos.printer import Lp  # optional dependency
+        except Exception:
+            Lp = None
+
+        if Lp is not None:
+            printer = Lp(printer_name=printer_name)
+            try:
+                printer._raw(data)
+            finally:
+                try:
+                    printer.close()
+                except Exception:
+                    pass
+        else:
+            # Send the raw ESC/POS byte stream straight to CUPS.
+            subprocess.run(
+                ['lp', '-d', printer_name, '-o', 'raw'],
+                input=data,
+                check=True,
+            )
+
+        print(f"Data sent to printer: {printer_name}")
