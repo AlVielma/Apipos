@@ -1,4 +1,19 @@
-build
-dist
-.venv
+# PyInstaller / build artifacts
+build/
+dist/
+*.app/
+*.dmg
+*.exe
+*.pkg
+Apipos-Setup.exe
+Output/
+
+# Python
+.venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+
+# OS / editor
 .DS_Store
+Thumbs.db

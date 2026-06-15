@@ -289,54 +289,65 @@ curl http://localhost:50432/health
 
 ## Crear instalador según el SO
 
-El empaquetado se hace con **PyInstaller** usando un `.spec` por plataforma.
-Cada build debe hacerse **en su propio sistema operativo** (PyInstaller no hace
-cross-compilation).
+Hay **scripts de build** que automatizan todo (crear venv, instalar
+dependencias, empaquetar). Cada build debe hacerse **en su propio sistema
+operativo** (PyInstaller no hace cross-compilation entre Windows y macOS).
+
+> **Nombre, versión y publisher** se editan en un solo lugar:
+> [app-meta.env](app-meta.env). Lo leen ambos scripts de build, los `.spec` y el
+> instalador de Inno Setup.
+
+### macOS — `./build-macos.sh`
 
 ```bash
-pip install pyinstaller
+./build-macos.sh              # pregunta la arquitectura
+# o directo:
+./build-macos.sh arm64        # Apple Silicon
+./build-macos.sh x86_64       # Intel
+./build-macos.sh universal2   # Universal (Intel + Apple Silicon)
 ```
 
-### Windows (.exe)
+El script crea/usa `.venv`, instala dependencias, empaqueta con PyInstaller y
+genera:
+- `dist/Apipos.app` (app de barra de menú, sin ícono en el Dock por `LSUIElement`)
+- `Apipos-<arch>.dmg` (instalador para distribuir)
 
-```powershell
-pip install -r requirements-windows.txt
-pyinstaller apipos.spec
+> Construir para una arquitectura distinta a la del equipo (o `universal2`)
+> requiere un Python universal2 y wheels universal2 de todas las dependencias. Si
+> falla, compila de forma nativa en la Mac correspondiente.
+>
+> Para distribuir fuera de tu equipo, macOS requiere **firmar** (`codesign`) y
+> **notarizar** la app; configura `codesign_identity` en `apipos-macos.spec`.
+
+### Windows — `build-windows.bat`
+
+Doble clic al archivo, o desde una terminal:
+
+```bat
+build-windows.bat
 ```
 
-Genera un ejecutable único en `dist\Apipos.exe`. Es una app sin consola que vive
-en la bandeja del sistema.
+El script crea/usa `.venv`, instala dependencias, empaqueta con PyInstaller y
+genera `dist\Apipos.exe` (app sin consola, vive en la bandeja). Si tienes
+**Inno Setup** instalado (`iscc` en el PATH), además compila
+[installer-windows.iss](installer-windows.iss) y produce `dist\Apipos-Setup.exe`
+(instalador con accesos directos, inicio automático y desinstalador).
 
-> Para un instalador propiamente dicho (con accesos directos, inicio automático,
-> desinstalador), envuelve el `.exe` con [Inno Setup](https://jrsoftware.org/isinfo.php)
-> o NSIS.
-
-### macOS (.app)
-
-```bash
-pip install -r requirements-macos.txt
-pyinstaller apipos-macos.spec
-```
-
-Genera `dist/Apipos.app` (app de barra de menú, sin ícono en el Dock gracias a
-`LSUIElement`).
-
-Para distribuirla como **.dmg**:
-
-```bash
-hdiutil create -volname "Apipos" -srcfolder "dist/Apipos.app" -ov -format UDZO Apipos.dmg
-```
-
-> Para distribución fuera de tu equipo, macOS requiere **firmar** (`codesign`) y
-> **notarizar** la app con una cuenta de Apple Developer; de lo contrario
-> Gatekeeper la bloqueará. Configura `codesign_identity` en `apipos-macos.spec`.
+> Descarga Inno Setup: https://jrsoftware.org/isdl.php
 
 ### Resumen de archivos de build
 
-| Archivo               | Plataforma | Salida                |
-|-----------------------|------------|-----------------------|
-| `apipos.spec`         | Windows    | `dist/Apipos.exe`     |
-| `apipos-macos.spec`   | macOS      | `dist/Apipos.app`     |
+| Archivo                  | Plataforma | Salida                                   |
+|--------------------------|------------|------------------------------------------|
+| `app-meta.env`           | ambos      | nombre/versión/publisher (fuente única)  |
+| `build-macos.sh`         | macOS      | `dist/Apipos.app` + `Apipos-<ver>-<arch>.dmg` |
+| `build-windows.bat`      | Windows    | `dist\Apipos.exe` (+ `Apipos-Setup.exe`) |
+| `apipos-macos.spec`      | macOS      | spec de PyInstaller (.app)               |
+| `apipos.spec`            | Windows    | spec de PyInstaller (.exe)               |
+| `installer-windows.iss`  | Windows    | script de Inno Setup (instalador)        |
+
+> También puedes invocar PyInstaller manualmente: `pyinstaller apipos-macos.spec`
+> o `pyinstaller apipos.spec`.
 
 ---
 

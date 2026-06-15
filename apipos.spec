@@ -1,6 +1,9 @@
 # -*- mode: python ; coding: utf-8 -*-
 # Windows build. Produces a single-file .exe:
 #   pyinstaller apipos.spec
+import os
+
+_app_name = os.environ.get('APP_NAME', 'Apipos')
 
 a = Analysis(
     ['apipos.py'],
@@ -26,7 +29,7 @@ exe = EXE(
     a.binaries,
     a.datas,
     [],
-    name='Apipos',
+    name=_app_name,
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
