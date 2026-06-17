@@ -44,7 +44,13 @@ class TaskBarIcon(wx.adv.TaskBarIcon):
         return menu
 
     def set_icon(self, path):
-        icon = wx.Icon(wx.Bitmap(path))
+        # The bundled app icon is full resolution (~1254px). The macOS menu bar
+        # is ~22pt tall and does NOT scale the bitmap for us, so a giant image
+        # renders blank/invisible. Scale it down to menu-bar/tray size first.
+        img = wx.Image(path, wx.BITMAP_TYPE_PNG)
+        size = 22
+        img = img.Scale(size, size, wx.IMAGE_QUALITY_HIGH)
+        icon = wx.Icon(wx.Bitmap(img))
         self.SetIcon(icon, f'{TRAY_TOOLTIP} — puerto {FLASK_PORT}')
 
     def on_left_down(self, event):
