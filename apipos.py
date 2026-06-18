@@ -28,6 +28,10 @@ def main():
         run_flask_app()
         return
 
+    # Register the app to start on login (idempotent; no-op when run from source).
+    from src.autostart import enable_autostart
+    enable_autostart()
+
     # Start the Flask app in a daemon thread so it stops when the tray exits.
     flask_thread = threading.Thread(target=run_flask_app)
     flask_thread.daemon = True

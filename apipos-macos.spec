@@ -18,6 +18,7 @@ a = Analysis(
     datas=[
         ('./assets/app-icon.png', 'assets'),
         ('./assets/APIPOS.pdf', 'assets'),
+        ('./app-meta.env', '.'),  # read at runtime for name/version (updater)
     ],
     hiddenimports=[],
     hookspath=[],

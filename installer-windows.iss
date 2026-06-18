@@ -32,9 +32,6 @@ WizardStyle=modern
 [Languages]
 Name: "spanish"; MessagesFile: "compiler:Languages\Spanish.isl"
 
-[Tasks]
-Name: "startup"; Description: "Iniciar {#AppName} al encender Windows"; GroupDescription: "Inicio automático:"
-
 [Files]
 Source: "dist\{#AppExe}"; DestDir: "{app}"; Flags: ignoreversion
 
@@ -43,10 +40,11 @@ Name: "{group}\{#AppName}"; Filename: "{app}\{#AppExe}"
 Name: "{group}\Desinstalar {#AppName}"; Filename: "{uninstallexe}"
 
 [Registry]
-; Start with Windows (only if the "startup" task is selected)
+; Start with Windows automatically (always). The app also self-registers on
+; first run, but this guarantees autostart even on a silent install.
 Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; \
   ValueType: string; ValueName: "{#AppName}"; ValueData: """{app}\{#AppExe}"""; \
-  Tasks: startup; Flags: uninsdeletevalue
+  Flags: uninsdeletevalue
 
 [Run]
 Filename: "{app}\{#AppExe}"; Description: "Ejecutar {#AppName} ahora"; \

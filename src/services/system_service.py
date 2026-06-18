@@ -2,7 +2,7 @@
 import platform
 import sys
 
-from src.config import FLASK_PORT
+from src.config import FLASK_PORT, APP_VERSION
 from src.printers import get_backend
 from src.utils.response import success_response
 
@@ -12,6 +12,7 @@ def get_health():
     backend = get_backend()
     data = {
         "status": "ok",
+        "version": APP_VERSION,
         "os": platform.system(),            # 'Windows' | 'Darwin' | 'Linux'
         "platform": sys.platform,           # 'win32' | 'darwin' | ...
         "backend": type(backend).__name__,  # WindowsPrinterBackend | MacPrinterBackend
