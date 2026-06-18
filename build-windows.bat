@@ -47,14 +47,27 @@ if not exist "dist\%APP_NAME%.exe" (
 
 REM --- 4. Optional: build the installer with Inno Setup ---------------------
 echo ==^> Buscando Inno Setup ^(iscc^) para crear el instalador
+set "ISCC_CMD="
+
+REM 4a. Primero buscar iscc en el PATH.
 where iscc >nul 2>nul
-if %errorlevel%==0 (
-  iscc /DAppName=%APP_NAME% /DAppVersion=%APP_VERSION% /DAppPublisher=%APP_PUBLISHER% installer-windows.iss
+if %errorlevel%==0 set "ISCC_CMD=iscc"
+
+REM 4b. Si no esta en el PATH, probar las rutas de instalacion por defecto.
+if not defined ISCC_CMD if exist "%ProgramFiles(x86)%\Inno Setup 6\ISCC.exe" set "ISCC_CMD=%ProgramFiles(x86)%\Inno Setup 6\ISCC.exe"
+if not defined ISCC_CMD if exist "%ProgramFiles%\Inno Setup 6\ISCC.exe" set "ISCC_CMD=%ProgramFiles%\Inno Setup 6\ISCC.exe"
+if not defined ISCC_CMD if exist "%ProgramFiles(x86)%\Inno Setup 5\ISCC.exe" set "ISCC_CMD=%ProgramFiles(x86)%\Inno Setup 5\ISCC.exe"
+if not defined ISCC_CMD if exist "%ProgramFiles%\Inno Setup 5\ISCC.exe" set "ISCC_CMD=%ProgramFiles%\Inno Setup 5\ISCC.exe"
+
+if defined ISCC_CMD (
+  echo ==^> Usando Inno Setup: !ISCC_CMD!
+  "!ISCC_CMD!" /DAppName=%APP_NAME% /DAppVersion=%APP_VERSION% /DAppPublisher=%APP_PUBLISHER% installer-windows.iss
   echo.
   echo Instalador creado: dist\%APP_NAME%-Setup.exe
 ) else (
   echo.
-  echo Inno Setup no encontrado. El ejecutable portable quedo en: dist\%APP_NAME%.exe
+  echo Inno Setup no encontrado ^(ni en PATH ni en rutas por defecto^).
+  echo El ejecutable portable quedo en: dist\%APP_NAME%.exe
   echo Para crear un instalador instala Inno Setup: https://jrsoftware.org/isdl.php
 )
 
