@@ -35,17 +35,26 @@ class PrintJobBuilder:
     def add_text(self, text, align='left', font_size='normal'):
         if font_size == 'md':
             self._buf += FONT_MD
+            scale = 2  # 'md' = doble ancho: cada carácter ocupa 2 columnas
         elif font_size == 'lg':
             self._buf += FONT_LG
+            scale = 3  # 'lg' = triple ancho
         else:
             self._buf += FONT_NORMAL
+            scale = 1
+
+        # El ancho efectivo en caracteres se reduce según el tamaño de fuente,
+        # porque el relleno (espacios) también se imprime a ese ancho. Si se
+        # usara self.width sin escalar, el texto en 'md'/'lg' se desborda y salta
+        # de línea (aparece corrido a la derecha y parte se va al renglón de abajo).
+        width = max(1, self.width // scale)
 
         if align == 'center':
-            text = text.center(self.width)
+            text = text.center(width)
         elif align == 'right':
-            text = text.rjust(self.width)
+            text = text.rjust(width)
         else:
-            text = text.ljust(self.width)
+            text = text.ljust(width)
 
         self._add_str(text)
         self._buf += FONT_NORMAL  # reset font size to normal
