@@ -27,6 +27,12 @@ class PrinterBackend:
         """Send a raw ESC/POS byte stream (bytes) to the printer as a single job."""
         raise NotImplementedError
 
-    def print_pdf(self, printer_name, pdf_bytes):
-        """Print a PDF document (bytes) on the printer using the OS print system."""
+    def print_pdf(self, printer_name, pdf_bytes, options=None):
+        """Print a PDF document (bytes) through the printer DRIVER.
+
+        `options` is an optional dict of backend-agnostic settings; each
+        backend maps them to its print system:
+          - 'media_mm': (width_mm, height_mm) -> custom media/paper size
+            (CUPS `media=Custom.WxHmm` on macOS, DEVMODE paper on Windows).
+        """
         raise NotImplementedError

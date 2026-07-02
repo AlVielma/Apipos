@@ -9,7 +9,7 @@ the single printer selected from the tray.
 """
 import base64
 
-from src.config import TEST_PDF
+from src.config import TEST_PDF, TEST_LABEL_PDF
 from src.services import escpos_service as escpos
 from src.services.print_job_builder import PrintJobBuilder
 from src.services.storage_service import load_selected_printer, save_selected_printer
@@ -71,6 +71,20 @@ def _parse_print_payload(payload):
     return printer_name, job_type, settings, content, pdf_data
 
 
+def _unknown_printer_error(printer_name):
+    """Return an error_response if the printer does not exist, else None.
+
+    Catches typos (e.g. 'AiYin-AS240-BT' vs the real queue 'AiYin_AS240_BT')
+    before `lp`/the spooler fails with an opaque OS error.
+    """
+    available = escpos.list_printers()
+    if printer_name not in available:
+        return error_response(
+            f"Printer '{printer_name}' not found.", data={"available": available}
+        )
+    return None
+
+
 def get_printers():
     """List the printers available on this machine."""
     return success_response(data=escpos.list_printers(), message="Printers listed.")
@@ -106,6 +120,9 @@ def open_drawer(payload=None):
 
     if not printer_name:
         return error_response("No printer selected.")
+    unknown = _unknown_printer_error(printer_name)
+    if unknown:
+        return unknown
 
     escpos.send_to_printer(printer_name, "\x1B\x70\x00\x19\xFA")  # Open the cash drawer
     return success_response(data={"printer": printer_name}, message="Cash drawer opened.")
@@ -122,6 +139,9 @@ def print_job(payload):
 
     if not printer_name:
         return error_response("No printer selected.")
+    unknown = _unknown_printer_error(printer_name)
+    if unknown:
+        return unknown
 
     if job_type == 'PDF':
         return _print_pdf_job(printer_name, pdf_data, settings)
@@ -167,32 +187,135 @@ def _print_pdf_job(printer_name, pdf_data, settings=None):
     return _print_pdf_bytes(printer_name, pdf_bytes, settings)
 
 
-def _print_pdf_bytes(printer_name, pdf_bytes, settings=None):
-    """Print raw PDF bytes.
+DOTS_PER_MM = 8  # 203 DPI thermal heads
 
-    Thermal ESC/POS printers do NOT understand PDF/PostScript, so the default is
-    to rasterize the PDF into an ESC/POS image. The "document" mode (let the OS
-    print system render the PDF) is only useful for full-page printers and must
-    be requested explicitly via settings.pdf_mode = "document".
+
+def _parse_label_size(raw):
+    """Normalize label_settings ({width, height, unit}) to mm/dots, or None.
+
+    Raises ValueError with a user-facing message on invalid input.
+    """
+    if not raw:
+        return None
+
+    unit = str(raw.get('unit') or 'mm').lower()
+    if unit in ('in', 'inch', 'inches', '"'):
+        to_mm = 25.4
+    elif unit == 'mm':
+        to_mm = 1.0
+    else:
+        raise ValueError(f"Unsupported unit '{unit}'. Use 'mm' or 'inch'.")
+
+    try:
+        width_mm = float(raw['width']) * to_mm
+    except (KeyError, TypeError, ValueError):
+        raise ValueError("label_settings requires a numeric 'width'.")
+    height_mm = None
+    if raw.get('height'):
+        try:
+            height_mm = float(raw['height']) * to_mm
+        except (TypeError, ValueError):
+            raise ValueError("label_settings 'height' must be a number.")
+
+    return {
+        'width_mm': width_mm,
+        'height_mm': height_mm,
+        'width_dots': int(round(width_mm * DOTS_PER_MM)),
+    }
+
+
+def _print_pdf_bytes(printer_name, pdf_bytes, settings=None):
+    """Print raw PDF bytes in one of two modes (settings.pdf_mode):
+
+      - "driver": hand the PDF to the OS print system so the printer's own
+        driver renders it. When settings.label_settings gives a size, it is
+        passed as custom media (e.g. media=Custom.60x30mm). This is the path
+        that works for label printers with a vendor driver (e.g. AiYin),
+        whose firmware ignores generic raw jobs.
+      - "raw": rasterize the PDF to an ESC/POS image and send it raw. For
+        thermal receipt printers, or driverless setups.
+
+    Default: "driver" when label_settings is present, "raw" otherwise (the
+    historic receipt behavior). "document" and "raster" are accepted as
+    aliases of "driver" and "raw" for backwards compatibility.
     """
     settings = settings or {}
-    mode = (settings.get('pdf_mode') or 'raster').lower()
+    try:
+        label = _parse_label_size(settings.get('label_settings'))
+    except ValueError as e:
+        return error_response(str(e))
 
-    if mode == 'document':
-        escpos.print_pdf(printer_name, pdf_bytes)
-        strategy = "document"
-    else:
+    mode = str(settings.get('pdf_mode') or ('driver' if label else 'raw')).lower()
+
+    if mode in ('driver', 'document'):
+        options = None
+        media = None
+        if label and label['height_mm']:
+            options = {'media_mm': (label['width_mm'], label['height_mm'])}
+            media = f"Custom.{label['width_mm']:g}x{label['height_mm']:g}mm"
+        escpos.print_pdf(printer_name, pdf_bytes, options)
+        return success_response(
+            data={
+                "printer": printer_name,
+                "type": "PDF",
+                "strategy": "driver",
+                "media": media,
+            },
+            message="PDF sent to the printer driver.",
+        )
+
+    if mode in ('raw', 'raster'):
+        width_dots = label['width_dots'] if label else _pdf_width_dots(settings)
         try:
-            escpos_data = escpos.pdf_to_escpos(pdf_bytes, width_dots=_pdf_width_dots(settings))
+            escpos_data = escpos.pdf_to_escpos(pdf_bytes, width_dots=width_dots)
         except ImportError as e:
             return error_response(str(e))
         escpos.send_raw(printer_name, escpos_data)
-        strategy = "raster"
+        return success_response(
+            data={
+                "printer": printer_name,
+                "type": "PDF",
+                "strategy": "raw",
+                "width_dots": width_dots,
+            },
+            message="PDF print job sent.",
+        )
 
-    return success_response(
-        data={"printer": printer_name, "type": "PDF", "strategy": strategy},
-        message="PDF print job sent.",
-    )
+    return error_response(f"Unsupported pdf_mode '{mode}'. Use 'driver' or 'raw'.")
+
+
+# Size of the bundled label test asset: 2.36in x 1.18in (60mm x 30mm).
+DEFAULT_LABEL_SETTINGS = {"width": 2.36, "height": 1.18, "unit": "inch"}
+
+
+def print_label_test(printer_name=None, mode=None, label_settings=None):
+    """Print the bundled label test PDF (price label, 2.36in x 1.18in).
+
+    mode: "driver" (default) or "raw". label_settings may override the size;
+    when omitted, the asset's real size is used.
+    """
+    if not printer_name:
+        printer_name = load_selected_printer()
+    if not printer_name:
+        return error_response("No printer selected.")
+    unknown = _unknown_printer_error(printer_name)
+    if unknown:
+        return unknown
+
+    try:
+        with open(TEST_LABEL_PDF, 'rb') as f:
+            pdf_bytes = f.read()
+    except FileNotFoundError:
+        return error_response("Label test PDF asset not found.")
+
+    label_settings = label_settings or {}
+    if not label_settings.get('width'):
+        label_settings = {**DEFAULT_LABEL_SETTINGS, **label_settings}
+
+    return _print_pdf_bytes(printer_name, pdf_bytes, {
+        "label_settings": label_settings,
+        "pdf_mode": mode or 'driver',
+    })
 
 
 def print_test(printer_name=None):
@@ -201,6 +324,9 @@ def print_test(printer_name=None):
         printer_name = load_selected_printer()
     if not printer_name:
         return error_response("No printer selected.")
+    unknown = _unknown_printer_error(printer_name)
+    if unknown:
+        return unknown
 
     try:
         with open(TEST_PDF, 'rb') as f:

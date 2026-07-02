@@ -31,9 +31,9 @@ def send_raw(printer_name, data):
     get_backend().send_raw(printer_name, data)
 
 
-def print_pdf(printer_name, pdf_bytes):
+def print_pdf(printer_name, pdf_bytes, options=None):
     """Print a PDF document via the OS print system."""
-    get_backend().print_pdf(printer_name, pdf_bytes)
+    get_backend().print_pdf(printer_name, pdf_bytes, options)
 
 
 def native_pdf_supported():
