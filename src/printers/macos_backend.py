@@ -52,12 +52,22 @@ class MacPrinterBackend(PrinterBackend):
 
         print(f"Data sent to printer: {printer_name}")
 
-    def print_pdf(self, printer_name, pdf_bytes):
+    def print_pdf(self, printer_name, pdf_bytes, options=None):
         # CUPS handles PDF natively, so we send it WITHOUT `-o raw` and let the
-        # printer driver rasterize it.
+        # printer driver rasterize it. options['media_mm'] = (w, h) selects a
+        # custom media size (label printing); other options pass through as
+        # `-o name=value`.
+        options = dict(options or {})
+        media_mm = options.pop('media_mm', None)
+
+        command = ['lp', '-d', printer_name]
+        if media_mm:
+            command += ['-o', f'media=Custom.{media_mm[0]:g}x{media_mm[1]:g}mm']
+        for name, value in options.items():
+            command += ['-o', f'{name}={value}']
         subprocess.run(
-            ['lp', '-d', printer_name],
+            command,
             input=pdf_bytes,
             check=True,
         )
-        print(f"PDF sent to printer: {printer_name}")
+        print(f"PDF sent to printer: {printer_name} (media_mm={media_mm})")

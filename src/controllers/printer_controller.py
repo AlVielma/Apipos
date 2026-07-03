@@ -62,3 +62,19 @@ def print_test_controller():
         return _respond(result)
     except Exception as e:
         return jsonify(error_response(str(e))), 500
+
+
+def print_label_test_controller():
+    try:
+        body = request.get_json(silent=True) or {}
+        # Query params override the JSON body's label_settings.
+        label_settings = dict(body.get('label_settings') or {})
+        for key in ('width', 'height', 'unit'):
+            if request.args.get(key):
+                label_settings[key] = request.args.get(key)
+        mode = request.args.get('mode') or body.get('mode') or body.get('pdf_mode')
+        printer = request.args.get('printer') or body.get('printer')
+        result = printer_service.print_label_test(printer, mode, label_settings or None)
+        return _respond(result)
+    except Exception as e:
+        return jsonify(error_response(str(e))), 500

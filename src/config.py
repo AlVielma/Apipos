@@ -50,4 +50,7 @@ TRAY_ICON = resource_path(os.path.join('assets', 'app-icon.png'))
 # Bundled PDF used by the /print/test endpoint (80mm @ 300 DPI ticket).
 TEST_PDF = resource_path(os.path.join('assets', 'APIPOS.pdf'))
 
+# Bundled PDF used by the /print/test-label endpoint (2.36in x 1.18in price label).
+TEST_LABEL_PDF = resource_path(os.path.join('assets', 'APIPOS_LABEL.pdf'))
+
 FLASK_PORT = 50432

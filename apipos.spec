@@ -12,6 +12,7 @@ a = Analysis(
     datas=[
         ('./assets/app-icon.png', 'assets'),
         ('./assets/APIPOS.pdf', 'assets'),
+        ('./assets/APIPOS_LABEL.pdf', 'assets'),
         ('./app-meta.env', '.'),  # read at runtime for name/version (updater)
     ],
     hiddenimports=['win32print', 'win32timezone'],

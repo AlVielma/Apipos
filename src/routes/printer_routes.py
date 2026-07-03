@@ -37,6 +37,12 @@ def print_test_endpoint():
     return printer_controller.print_test_controller()
 
 
+@printer_bp.route('/print/test-label', methods=['GET', 'POST'])
+@cross_origin()
+def print_test_label_endpoint():
+    return printer_controller.print_label_test_controller()
+
+
 @printer_bp.route('/open-withdrawer', methods=['POST'])
 @cross_origin()
 def open_withdrawer_endpoint():
