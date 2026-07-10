@@ -150,6 +150,27 @@ def print_job(payload):
     return error_response(f"Unsupported job type '{job_type}'. Use 'RAW' or 'PDF'.")
 
 
+def _truthy(value):
+    """Coerce a setting value (bool / str / number) to a boolean."""
+    if isinstance(value, bool):
+        return value
+    if value is None:
+        return False
+    return str(value).strip().lower() in ('1', 'true', 'yes', 'on', 'si', 'sí')
+
+
+def _should_cut(settings, is_label=False):
+    """Whether to append a paper cut after a rasterized (raw) PDF job.
+
+    Honors `settings.cut` when provided; when omitted, receipts cut by default
+    and labels do not (a mid-label cut would ruin the media).
+    """
+    cut = settings.get('cut')
+    if cut is None:
+        return not is_label
+    return _truthy(cut)
+
+
 def _pdf_width_dots(settings):
     """Raster width in dots for PDF rasterization (576 for 80mm, 384 for 58mm)."""
     settings = settings or {}
@@ -238,6 +259,11 @@ def _print_pdf_bytes(printer_name, pdf_bytes, settings=None):
     Default: "driver" when label_settings is present, "raw" otherwise (the
     historic receipt behavior). "document" and "raster" are accepted as
     aliases of "driver" and "raw" for backwards compatibility.
+
+    In "raw" mode, settings.cut controls whether a full paper cut is appended
+    at the end. When omitted it defaults to True for receipts and False for
+    labels. In "driver" mode the cut is controlled by the printer driver, so
+    this setting has no effect there.
     """
     settings = settings or {}
     try:
@@ -270,6 +296,9 @@ def _print_pdf_bytes(printer_name, pdf_bytes, settings=None):
             escpos_data = escpos.pdf_to_escpos(pdf_bytes, width_dots=width_dots)
         except ImportError as e:
             return error_response(str(e))
+        cut = _should_cut(settings, is_label=bool(label))
+        if cut:
+            escpos_data += escpos.feed_and_cut()
         escpos.send_raw(printer_name, escpos_data)
         return success_response(
             data={
@@ -277,6 +306,7 @@ def _print_pdf_bytes(printer_name, pdf_bytes, settings=None):
                 "type": "PDF",
                 "strategy": "raw",
                 "width_dots": width_dots,
+                "cut": cut,
             },
             message="PDF print job sent.",
         )

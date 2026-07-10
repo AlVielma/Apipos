@@ -58,6 +58,19 @@ def send_image_to_printer(printer_name, image_data):
 
 
 # ---------------------------------------------------------------------------
+# ESC/POS control commands
+# ---------------------------------------------------------------------------
+
+CUT_FEED = b'\n\n\n\n'      # advance the paper so the content clears the cutter
+FULL_CUT = b'\x1d\x56\x00'  # GS V 0 -> full paper cut
+
+
+def feed_and_cut():
+    """Return the ESC/POS bytes that advance the paper and perform a full cut."""
+    return CUT_FEED + FULL_CUT
+
+
+# ---------------------------------------------------------------------------
 # Image conversion (pure)
 # ---------------------------------------------------------------------------
 
