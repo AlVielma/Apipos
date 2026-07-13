@@ -138,21 +138,37 @@ def resize_image(image, target_width):
     return image.resize((target_width, target_height), Image.NEAREST)
 
 
-def convert_image_to_escpos_format(image_bw):
+def convert_image_to_escpos_format(image_bw, band_height=255):
+    """Encode a 1-bit PIL image as a GS v 0 raster bit image (ESC/POS standard).
+
+    GS v 0 is the modern raster command supported across ESC/POS printers
+    (Epson, BIXOLON, etc.). We used to emit the legacy `ESC *` bit-image mode,
+    but some firmware (e.g. BIXOLON SRP-330II) silently ignores it — the paper
+    feeds and cuts but no dots are printed. GS v 0 renders reliably everywhere.
+
+    The image is emitted in horizontal bands so a tall receipt stays within the
+    printer's raster buffer. A set bit means "print a dot"; in a mode '1' image
+    a pixel value of 0 is black, so black pixels become set bits.
+    """
     width, height = image_bw.size
     pixels = image_bw.load()
-    img_data = b""
-    for y in range(0, height, 24):
-        img_data += b'\x1b\x2a\x21' + bytes([width % 256, width // 256])
-        for x in range(width):
-            for k in range(3):
+    bytes_per_row = (width + 7) // 8
+    xL, xH = bytes_per_row & 0xFF, (bytes_per_row >> 8) & 0xFF
+
+    out = bytearray()
+    for band_start in range(0, height, band_height):
+        band = min(band_height, height - band_start)
+        out += b'\x1d\x76\x30\x00'  # GS v 0, m=0 (normal density)
+        out += bytes([xL, xH, band & 0xFF, (band >> 8) & 0xFF])
+        for y in range(band_start, band_start + band):
+            for byte_index in range(bytes_per_row):
                 byte = 0
                 for bit in range(8):
-                    if y + k * 8 + bit < height and pixels[x, y + k * 8 + bit] == 0:
+                    x = byte_index * 8 + bit
+                    if x < width and pixels[x, y] == 0:
                         byte |= 1 << (7 - bit)
-                img_data += bytes([byte])
-        img_data += b'\n'
-    return img_data
+                out.append(byte)
+    return bytes(out)
 
 
 def image_to_base64(image_path):
