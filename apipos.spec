@@ -35,7 +35,11 @@ exe = EXE(
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
-    upx=True,
+    # UPX corrupts PyMuPDF's native MuPDF library: fitz imports and opens PDFs
+    # fine, but get_pixmap() renders a BLANK raster (empty tickets on PDF jobs).
+    # Disabled so the native binaries ship intact. Do not re-enable without
+    # excluding pymupdf/_mupdf/libmupdf from UPX.
+    upx=False,
     upx_exclude=[],
     runtime_tmpdir=None,
     console=False,

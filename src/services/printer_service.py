@@ -172,8 +172,19 @@ def _should_cut(settings, is_label=False):
 
 
 def _pdf_width_dots(settings):
-    """Raster width in dots for PDF rasterization (576 for 80mm, 384 for 58mm)."""
+    """Raster width in dots for PDF rasterization.
+
+    Priority:
+      1. settings.width_dots  -> explicit dots/line. Needed for 180-DPI heads
+         like the BIXOLON SRP-330II, whose max is 512 dots (not 576). Sending
+         576 to such a printer makes it drop the WHOLE raster -> blank ticket.
+      2. char_width           -> 576 for >= 48 cols, else 384.
+      3. paper_size (mm)      -> 576 for >= 80mm, else 384.
+      4. default              -> 576 (80mm @ 203 DPI).
+    """
     settings = settings or {}
+    if settings.get('width_dots'):
+        return int(settings['width_dots'])
     char_width = settings.get('char_width')
     if char_width:
         return 576 if int(char_width) >= 48 else 384
