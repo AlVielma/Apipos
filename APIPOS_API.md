@@ -106,7 +106,8 @@ agrega automáticamente al final.
         [1, "Pan Bimbo", "$45.50", "$45.50"]
     ]}},
     { "type": "separator" },
-    { "type": "special_text", "data": { "text1": "TOTAL", "text2": "$81.50" } },
+    { "type": "text", "data": "PEDIDO #42", "align": "center", "high_contrast": true },
+    { "type": "special_text", "data": { "text1": "TOTAL", "text2": "$81.50" }, "high_contrast": true },
     { "type": "text", "data": "¡Gracias por su compra!", "align": "center" },
     { "type": "open_withdrawer" }
   ]
@@ -117,8 +118,8 @@ agrega automáticamente al final.
 
 | `type` | Campos | Notas |
 |---|---|---|
-| `text` | `data` (string), `align`: `left`\|`center`\|`right`, `font_size`: `normal`\|`md`\|`lg` | `md` = doble tamaño, `lg` = triple |
-| `special_text` | `data: {"text1", "text2"}` | text1 a la izquierda, text2 a la derecha (para TOTAL, CAMBIO, etc.) |
+| `text` | `data` (string), `align`: `left`\|`center`\|`right`, `font_size`: `normal`\|`md`\|`lg`, `high_contrast`: bool (opcional, default `false`) | `md` = doble tamaño, `lg` = triple. `high_contrast: true` imprime el texto en alto contraste (fondo negro / texto blanco) con un margen de 1 espacio; el relleno de alineación queda fuera del bloque |
+| `special_text` | `data: {"text1", "text2"}`, `high_contrast`: bool (opcional, default `false`) | text1 a la izquierda, text2 a la derecha (para TOTAL, CAMBIO, etc.). `high_contrast: true` invierte la línea completa (fondo negro / texto blanco) |
 | `table` | `data: {"rows": [[cant, producto, precio, importe], ...]}` | Imprime encabezado Cant./Producto/Precio/Importe |
 | `separator` | — | Línea de guiones |
 | `image` | `data` (imagen base64) | Se convierte a B/N y se centra |

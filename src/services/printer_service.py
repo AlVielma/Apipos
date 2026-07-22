@@ -403,11 +403,16 @@ def _print_raw_job(printer_name, settings, content):
                 item['data'],
                 align=item.get('align', 'left'),
                 font_size=item.get('font_size', 'normal'),
+                high_contrast=_truthy(item.get('high_contrast')),
             )
 
         elif item_type == 'special_text':
             special_text_data = item['data']
-            builder.add_special_text(special_text_data['text1'], special_text_data['text2'])
+            builder.add_special_text(
+                special_text_data['text1'],
+                special_text_data['text2'],
+                high_contrast=_truthy(item.get('high_contrast')),
+            )
 
         elif item_type == 'table':
             builder.add_table(item['data'].get('rows', []))

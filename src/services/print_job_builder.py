@@ -17,6 +17,8 @@ FONT_MD = b'\x1D\x21\x11'  # double width and height
 FONT_LG = b'\x1D\x21\x22'  # triple width and height
 FULL_CUT = b'\x1d\x56\x00'
 OPEN_DRAWER = b'\x1B\x70\x00\x19\xFA'
+HIGH_CONTRAST_ON = b'\x1D\x42\x01'   # GS B 1 -> reverse (black background, white text)
+HIGH_CONTRAST_OFF = b'\x1D\x42\x00'  # GS B 0 -> normal
 
 
 class PrintJobBuilder:
@@ -32,7 +34,7 @@ class PrintJobBuilder:
         self._buf += text.encode('latin1')
 
     # -- content pieces --------------------------------------------------
-    def add_text(self, text, align='left', font_size='normal'):
+    def add_text(self, text, align='left', font_size='normal', high_contrast=False):
         if font_size == 'md':
             self._buf += FONT_MD
             scale = 2  # 'md' = doble ancho: cada carácter ocupa 2 columnas
@@ -49,19 +51,49 @@ class PrintJobBuilder:
         # de línea (aparece corrido a la derecha y parte se va al renglón de abajo).
         width = max(1, self.width // scale)
 
-        if align == 'center':
-            text = text.center(width)
-        elif align == 'right':
-            text = text.rjust(width)
+        if high_contrast:
+            # Reverse-video (GS B) only wraps the text plus a 1-space margin on
+            # each side; the alignment padding stays outside the block so it
+            # prints white. GS B is a print mode: it emits no columns, so the
+            # column count is computed exactly as in the normal path.
+            block = ' ' + text + ' '
+            if len(block) > width:  # no room for margins: don't truncate the text
+                block = text
+            pad_total = max(0, width - len(block))
+            if align == 'center':
+                left, right = pad_total // 2 + pad_total % 2, pad_total // 2
+            elif align == 'right':
+                left, right = pad_total, 0
+            else:
+                left, right = 0, pad_total
+            self._add_str(' ' * left)
+            self._buf += HIGH_CONTRAST_ON
+            self._add_str(block)
+            self._buf += HIGH_CONTRAST_OFF  # always OFF before the newline: no leak
+            self._add_str(' ' * right)
         else:
-            text = text.ljust(width)
+            if align == 'center':
+                text = text.center(width)
+            elif align == 'right':
+                text = text.rjust(width)
+            else:
+                text = text.ljust(width)
+            self._add_str(text)
 
-        self._add_str(text)
         self._buf += FONT_NORMAL  # reset font size to normal
         self._add_str('\n')
 
-    def add_special_text(self, text1, text2):
-        self._add_str(escpos.format_special_text(text1, text2, self.width) + '\n')
+    def add_special_text(self, text1, text2, high_contrast=False):
+        line = escpos.format_special_text(text1, text2, self.width)
+        if high_contrast:
+            # Reverse-video wraps the whole formatted line (full 48/32 columns);
+            # OFF is emitted before the newline so no state leaks to the next item.
+            self._buf += HIGH_CONTRAST_ON
+            self._add_str(line)
+            self._buf += HIGH_CONTRAST_OFF
+            self._add_str('\n')
+        else:
+            self._add_str(line + '\n')
 
     def add_table(self, rows):
         width = self.width
