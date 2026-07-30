@@ -98,8 +98,9 @@ agrega automáticamente al final.
   "settings": { "paper_size": 80 },
   "content": [
     { "type": "image", "data": "<PNG/JPG en base64>" },
-    { "type": "text", "data": "MI TIENDA S.A.", "align": "center", "font_size": "md" },
+    { "type": "text", "data": "MI TIENDA S.A.", "align": "center", "font_size": "md", "font_weight": "bold" },
     { "type": "text", "data": "Av. Principal 123", "align": "center" },
+    { "type": "text", "data": "RFC ABC010101XYZ", "align": "center", "font_weight": "thin" },
     { "type": "separator" },
     { "type": "table", "data": { "rows": [
         [2, "Coca Cola 600ml", "$18.00", "$36.00"],
@@ -107,7 +108,7 @@ agrega automáticamente al final.
     ]}},
     { "type": "separator" },
     { "type": "text", "data": "PEDIDO #42", "align": "center", "high_contrast": true },
-    { "type": "special_text", "data": { "text1": "TOTAL", "text2": "$81.50" }, "high_contrast": true },
+    { "type": "special_text", "data": { "text1": "TOTAL", "text2": "$81.50" }, "font_weight": "bold", "high_contrast": true },
     { "type": "text", "data": "¡Gracias por su compra!", "align": "center" },
     { "type": "open_withdrawer" }
   ]
@@ -118,12 +119,19 @@ agrega automáticamente al final.
 
 | `type` | Campos | Notas |
 |---|---|---|
-| `text` | `data` (string), `align`: `left`\|`center`\|`right`, `font_size`: `normal`\|`md`\|`lg`, `high_contrast`: bool (opcional, default `false`) | `md` = doble tamaño, `lg` = triple. `high_contrast: true` imprime el texto en alto contraste (fondo negro / texto blanco) con un margen de 1 espacio; el relleno de alineación queda fuera del bloque |
-| `special_text` | `data: {"text1", "text2"}`, `high_contrast`: bool (opcional, default `false`) | text1 a la izquierda, text2 a la derecha (para TOTAL, CAMBIO, etc.). `high_contrast: true` invierte la línea completa (fondo negro / texto blanco) |
+| `text` | `data` (string), `align`: `left`\|`center`\|`right`, `font_size`: `normal`\|`md`\|`lg`, `font_weight`: `normal`\|`bold`\|`thin` (opcional, default `normal`), `high_contrast`: bool (opcional, default `false`) | `md` = doble tamaño, `lg` = triple. `font_weight: "bold"` imprime en negrita; `"thin"` usa la Fuente B de la impresora (más pequeña y ligera) y recalcula el ancho del renglón a 64 columnas en 80mm (42 en 58mm). `high_contrast: true` imprime el texto en alto contraste (fondo negro / texto blanco) con un margen de 1 espacio; el relleno de alineación queda fuera del bloque. Las tres opciones son combinables |
+| `special_text` | `data: {"text1", "text2"}`, `font_weight`: `normal`\|`bold`\|`thin` (opcional, default `normal`), `high_contrast`: bool (opcional, default `false`) | text1 a la izquierda, text2 a la derecha (para TOTAL, CAMBIO, etc.). `font_weight` aplica al renglón completo. `high_contrast: true` invierte la línea completa (fondo negro / texto blanco) |
 | `table` | `data: {"rows": [[cant, producto, precio, importe], ...]}` | Imprime encabezado Cant./Producto/Precio/Importe |
 | `separator` | — | Línea de guiones |
 | `image` | `data` (imagen base64) | Se convierte a B/N y se centra |
 | `open_withdrawer` | — | Abre el cajón al final del ticket |
+
+> **Nota de compatibilidad de `font_weight: "thin"`.** ESC/POS no tiene un peso
+> "light" real: `thin` se aproxima con la Fuente B de la impresora (`ESC M`).
+> `bold` (`ESC E`) es prácticamente universal, pero el soporte de la Fuente B
+> depende del firmware: hay impresoras donde su ancho de columna difiere (la
+> alineación puede quedar levemente desviada) y otras donde se ignora y el
+> texto sale normal. Es una degradación aceptable, no un error del API.
 
 ### `settings` (opcional, modo RAW)
 

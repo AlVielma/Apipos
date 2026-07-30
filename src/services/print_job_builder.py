@@ -19,6 +19,14 @@ FULL_CUT = b'\x1d\x56\x00'
 OPEN_DRAWER = b'\x1B\x70\x00\x19\xFA'
 HIGH_CONTRAST_ON = b'\x1D\x42\x01'   # GS B 1 -> reverse (black background, white text)
 HIGH_CONTRAST_OFF = b'\x1D\x42\x00'  # GS B 0 -> normal
+BOLD_ON = b'\x1B\x45\x01'    # ESC E 1 -> emphasized (bold)
+BOLD_OFF = b'\x1B\x45\x00'   # ESC E 0 -> normal weight
+FONT_B_ON = b'\x1B\x4D\x01'  # ESC M 1 -> Font B (smaller, lighter-looking) ~ "thin"
+FONT_B_OFF = b'\x1B\x4D\x00'  # ESC M 0 -> Font A (default)
+
+# Font B is narrower than Font A (9 vs 12 dots per char in the Epson standard),
+# so the same physical line fits more columns: 48 -> 64, 32 -> 42.
+FONT_B_WIDTH_RATIO = (4, 3)
 
 
 class PrintJobBuilder:
@@ -34,7 +42,22 @@ class PrintJobBuilder:
         self._buf += text.encode('latin1')
 
     # -- content pieces --------------------------------------------------
-    def add_text(self, text, align='left', font_size='normal', high_contrast=False):
+    def _base_width(self, font_weight):
+        """Columns available on a line for the given weight (Font B fits more)."""
+        if font_weight == 'thin':
+            num, den = FONT_B_WIDTH_RATIO
+            return (self.width * num) // den
+        return self.width
+
+    def add_text(self, text, align='left', font_size='normal', high_contrast=False,
+                 font_weight='normal'):
+        # Weight commands are emitted ONLY when the weight is not normal, so
+        # existing payloads keep producing byte-identical output.
+        bold = font_weight == 'bold'
+        thin = font_weight == 'thin'
+        if thin:
+            self._buf += FONT_B_ON
+
         if font_size == 'md':
             self._buf += FONT_MD
             scale = 2  # 'md' = doble ancho: cada carácter ocupa 2 columnas
@@ -45,11 +68,15 @@ class PrintJobBuilder:
             self._buf += FONT_NORMAL
             scale = 1
 
+        if bold:
+            self._buf += BOLD_ON
+
         # El ancho efectivo en caracteres se reduce según el tamaño de fuente,
         # porque el relleno (espacios) también se imprime a ese ancho. Si se
         # usara self.width sin escalar, el texto en 'md'/'lg' se desborda y salta
         # de línea (aparece corrido a la derecha y parte se va al renglón de abajo).
-        width = max(1, self.width // scale)
+        # 'thin' amplía la base de columnas antes de escalar (Fuente B es más angosta).
+        width = max(1, self._base_width(font_weight) // scale)
 
         if high_contrast:
             # Reverse-video (GS B) only wraps the text plus a 1-space margin on
@@ -80,20 +107,34 @@ class PrintJobBuilder:
                 text = text.ljust(width)
             self._add_str(text)
 
+        if bold:
+            self._buf += BOLD_OFF
         self._buf += FONT_NORMAL  # reset font size to normal
+        if thin:
+            self._buf += FONT_B_OFF  # back to Font A: no mode leaks past the item
         self._add_str('\n')
 
-    def add_special_text(self, text1, text2, high_contrast=False):
-        line = escpos.format_special_text(text1, text2, self.width)
+    def add_special_text(self, text1, text2, high_contrast=False, font_weight='normal'):
+        bold = font_weight == 'bold'
+        thin = font_weight == 'thin'
+        line = escpos.format_special_text(text1, text2, self._base_width(font_weight))
+        if thin:
+            self._buf += FONT_B_ON
+        if bold:
+            self._buf += BOLD_ON
         if high_contrast:
             # Reverse-video wraps the whole formatted line (full 48/32 columns);
             # OFF is emitted before the newline so no state leaks to the next item.
             self._buf += HIGH_CONTRAST_ON
             self._add_str(line)
             self._buf += HIGH_CONTRAST_OFF
-            self._add_str('\n')
         else:
-            self._add_str(line + '\n')
+            self._add_str(line)
+        if bold:
+            self._buf += BOLD_OFF
+        if thin:
+            self._buf += FONT_B_OFF
+        self._add_str('\n')
 
     def add_table(self, rows):
         width = self.width
