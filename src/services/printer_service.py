@@ -405,6 +405,7 @@ def _print_raw_job(printer_name, settings, content):
                 font_size=item.get('font_size', 'normal'),
                 high_contrast=_truthy(item.get('high_contrast')),
                 font_weight=item.get('font_weight', 'normal'),
+                font=item.get('font', 'a'),
             )
 
         elif item_type == 'special_text':
@@ -414,6 +415,7 @@ def _print_raw_job(printer_name, settings, content):
                 special_text_data['text2'],
                 high_contrast=_truthy(item.get('high_contrast')),
                 font_weight=item.get('font_weight', 'normal'),
+                font=item.get('font', 'a'),
             )
 
         elif item_type == 'table':

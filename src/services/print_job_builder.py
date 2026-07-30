@@ -21,12 +21,15 @@ HIGH_CONTRAST_ON = b'\x1D\x42\x01'   # GS B 1 -> reverse (black background, whit
 HIGH_CONTRAST_OFF = b'\x1D\x42\x00'  # GS B 0 -> normal
 BOLD_ON = b'\x1B\x45\x01'    # ESC E 1 -> emphasized (bold)
 BOLD_OFF = b'\x1B\x45\x00'   # ESC E 0 -> normal weight
-FONT_B_ON = b'\x1B\x4D\x01'  # ESC M 1 -> Font B (smaller, lighter-looking) ~ "thin"
-FONT_B_OFF = b'\x1B\x4D\x00'  # ESC M 0 -> Font A (default)
 
-# Font B is narrower than Font A (9 vs 12 dots per char in the Epson standard),
-# so the same physical line fits more columns: 48 -> 64, 32 -> 42.
-FONT_B_WIDTH_RATIO = (4, 3)
+# ESC M n selects the printer's built-in typeface. Narrower typefaces fit more
+# columns on the same physical line; the ratio rescales self.width (Font A base).
+TYPEFACES = {
+    'a': (b'\x1B\x4D\x00', (1, 1)),   # Font A 12x24 (default) -> 48/32 cols
+    'b': (b'\x1B\x4D\x01', (4, 3)),   # Font B 9x17  -> 64/42 cols
+    'c': (b'\x1B\x4D\x02', (3, 2)),   # Font C 8x16  -> 72/48 cols (limited firmware support)
+}
+TYPEFACE_RESET = b'\x1B\x4D\x00'      # back to Font A
 
 
 class PrintJobBuilder:
@@ -42,21 +45,24 @@ class PrintJobBuilder:
         self._buf += text.encode('latin1')
 
     # -- content pieces --------------------------------------------------
-    def _base_width(self, font_weight):
-        """Columns available on a line for the given weight (Font B fits more)."""
-        if font_weight == 'thin':
-            num, den = FONT_B_WIDTH_RATIO
-            return (self.width * num) // den
-        return self.width
+    def _typeface(self, font):
+        """Normalize the requested font; unknown values fall back to Font A."""
+        font = str(font or 'a').strip().lower()
+        return font if font in TYPEFACES else 'a'
+
+    def _base_width(self, font):
+        """Columns available on a line for the given typeface (narrower = more)."""
+        num, den = TYPEFACES[font][1]
+        return (self.width * num) // den
 
     def add_text(self, text, align='left', font_size='normal', high_contrast=False,
-                 font_weight='normal'):
-        # Weight commands are emitted ONLY when the weight is not normal, so
+                 font_weight='normal', font='a'):
+        # Mode commands are emitted ONLY when they differ from the default, so
         # existing payloads keep producing byte-identical output.
         bold = font_weight == 'bold'
-        thin = font_weight == 'thin'
-        if thin:
-            self._buf += FONT_B_ON
+        font = self._typeface(font)
+        if font != 'a':
+            self._buf += TYPEFACES[font][0]
 
         if font_size == 'md':
             self._buf += FONT_MD
@@ -75,8 +81,8 @@ class PrintJobBuilder:
         # porque el relleno (espacios) también se imprime a ese ancho. Si se
         # usara self.width sin escalar, el texto en 'md'/'lg' se desborda y salta
         # de línea (aparece corrido a la derecha y parte se va al renglón de abajo).
-        # 'thin' amplía la base de columnas antes de escalar (Fuente B es más angosta).
-        width = max(1, self._base_width(font_weight) // scale)
+        # Las fuentes B/C son más angostas: amplían la base de columnas antes de escalar.
+        width = max(1, self._base_width(font) // scale)
 
         if high_contrast:
             # Reverse-video (GS B) only wraps the text plus a 1-space margin on
@@ -110,16 +116,17 @@ class PrintJobBuilder:
         if bold:
             self._buf += BOLD_OFF
         self._buf += FONT_NORMAL  # reset font size to normal
-        if thin:
-            self._buf += FONT_B_OFF  # back to Font A: no mode leaks past the item
+        if font != 'a':
+            self._buf += TYPEFACE_RESET  # back to Font A: no mode leaks past the item
         self._add_str('\n')
 
-    def add_special_text(self, text1, text2, high_contrast=False, font_weight='normal'):
+    def add_special_text(self, text1, text2, high_contrast=False, font_weight='normal',
+                         font='a'):
         bold = font_weight == 'bold'
-        thin = font_weight == 'thin'
-        line = escpos.format_special_text(text1, text2, self._base_width(font_weight))
-        if thin:
-            self._buf += FONT_B_ON
+        font = self._typeface(font)
+        line = escpos.format_special_text(text1, text2, self._base_width(font))
+        if font != 'a':
+            self._buf += TYPEFACES[font][0]
         if bold:
             self._buf += BOLD_ON
         if high_contrast:
@@ -132,8 +139,8 @@ class PrintJobBuilder:
             self._add_str(line)
         if bold:
             self._buf += BOLD_OFF
-        if thin:
-            self._buf += FONT_B_OFF
+        if font != 'a':
+            self._buf += TYPEFACE_RESET
         self._add_str('\n')
 
     def add_table(self, rows):
