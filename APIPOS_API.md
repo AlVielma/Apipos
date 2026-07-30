@@ -148,10 +148,6 @@ equivalen a `"b"`); un valor no reconocido usa la Fuente A en silencio.
 > desviada) o el comando puede ignorarse por completo (el texto sale en la
 > fuente activa). Es una degradación aceptable, no un error del API.
 
-> **Migración desde `font_weight: "thin"`.** `font_weight: "thin"` fue retirado;
-> usa `font: "b"` (era la misma Fuente B, ahora expuesta de forma explícita).
-> Un `"thin"` recibido hoy imprime en peso normal, sin error.
-
 ### `settings` (opcional, modo RAW)
 
 - `paper_size`: `80` (default, 48 columnas) o `58` (32 columnas), en mm.
